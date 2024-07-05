@@ -41,11 +41,16 @@
   ],
   "lint": {
     "rules": {
-      "exclude": ["no-window"],
-      "tags": ["fresh", "recommended"]
+      "exclude": [
+        "no-window"
+      ],
+      "tags": [
+        "fresh",
+        "recommended"
+      ]
     }
   },
-  "nodeModulesDir": true,
+  "nodeModulesDir": false,
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
