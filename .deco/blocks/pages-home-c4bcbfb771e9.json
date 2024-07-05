@@ -5,6 +5,11 @@
       "__resolveType": "website/sections/Seo/SeoV2.tsx"
     },
     {
+      "__resolveType": "site/sections/Lp/Header.tsx",
+      "buttonLink": "https://x.com/MrAhmadAwais/",
+      "logo": "https://ozksgdmyrqcxcwhnbepg.supabase.co/storage/v1/object/public/assets/11159/467eee1e-7ea2-40f0-8a51-b873c1f5567a"
+    },
+    {
       "__resolveType": "site/sections/Lp/Footer.tsx",
       "text": "© 2024 Langbase, Inc. 2261 Market Street #5698 San Francisco, CA 94114."
     }
