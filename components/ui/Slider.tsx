@@ -19,6 +19,10 @@ function Slider(props: JSX.IntrinsicElements["ul"]) {
   return <ul data-slider {...props} />;
 }
 
+function View(props: JSX.IntrinsicElements["div"]) {
+  return <div data-slider-view {...props} style={{ position: "relative" }} />;
+}
+
 function Item({
   index,
   ...props
@@ -50,33 +54,11 @@ export interface Props {
   infinite?: boolean;
 }
 
-const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
+const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
   function init() {
     // Percentage of the item that has to be inside the container
     // for it it be considered as inside the container
     const THRESHOLD = 0.6;
-
-    const intersectionX = (element: DOMRect, container: DOMRect): number => {
-      const delta = container.width / 1_000;
-
-      if (element.right < container.left - delta) {
-        return 0.0;
-      }
-
-      if (element.left > container.right + delta) {
-        return 0.0;
-      }
-
-      if (element.left < container.left - delta) {
-        return element.right - container.left + delta;
-      }
-
-      if (element.right > container.right + delta) {
-        return container.right - element.left + delta;
-      }
-
-      return element.width;
-    };
 
     // as any are ok in typeguard functions
     const isHTMLElement = (x: Element): x is HTMLElement =>
@@ -84,7 +66,8 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
       typeof (x as any).offsetLeft === "number";
 
     const root = document.getElementById(rootId);
-    const slider = root?.querySelector("[data-slider]");
+    const view = root?.querySelector("[data-slider-view]");
+    const slider = root?.querySelector("[data-slider]") as HTMLUListElement;
     const items = root?.querySelectorAll("[data-slider-item]");
     const prev = root?.querySelector('[data-slide="prev"]');
     const next = root?.querySelector('[data-slide="next"]');
@@ -93,32 +76,20 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
     if (!root || !slider || !items || items.length === 0) {
       console.warn(
         "Missing necessary slider attributes. It will not work as intended. Necessary elements:",
-        { root, slider, items, rootId },
+        { root, slider, items, rootId, view },
       );
 
       return;
     }
+    const PERCENT_OF_PRODUCT_VIEW = 100;
+    items.forEach((item, index) =>
+      (item as HTMLLIElement).style.transform = `translateX(${PERCENT_OF_PRODUCT_VIEW * index
+      }%)`
+    );
 
-    const getElementsInsideContainer = () => {
-      const indices: number[] = [];
-      const sliderRect = slider.getBoundingClientRect();
-
-      for (let index = 0; index < items.length; index++) {
-        const item = items.item(index);
-        const rect = item.getBoundingClientRect();
-
-        const ratio = intersectionX(
-          rect,
-          sliderRect,
-        ) / rect.width;
-
-        if (ratio > THRESHOLD) {
-          indices.push(index);
-        }
-      }
-
-      return indices;
-    };
+    let itemIndex = 0;
+    const MIN_ELEMENTS = 0;
+    const MAX_INDEX = items.length - 1;
 
     const goToItem = (index: number) => {
       const item = items.item(index);
@@ -131,35 +102,31 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
         return;
       }
 
-      slider.scrollTo({
-        top: 0,
-        behavior: scroll,
-        left: item.offsetLeft - root.offsetLeft,
+      const percentOfView =
+        ((items.item(0) as HTMLLIElement).offsetWidth / root.offsetWidth) * 100;
+      items.forEach((item, itemIndex) => {
+        if (itemIndex < index) {
+          (item as HTMLLIElement).style.transform = `translateX(${PERCENT_OF_PRODUCT_VIEW * (itemIndex + MAX_INDEX + 1)
+            }%)`;
+        } else {
+          (item as HTMLLIElement).style.transform = `translateX(${PERCENT_OF_PRODUCT_VIEW * itemIndex
+            }%)`;
+        }
       });
+
+      slider.style.transform = `translateX(-${percentOfView * index}%)`;
     };
 
     const onClickPrev = () => {
-      const indices = getElementsInsideContainer();
-      // Wow! items per page is how many elements are being displayed inside the container!!
-      const itemsPerPage = indices.length;
-
-      const isShowingFirst = indices[0] === 0;
-      const pageIndex = Math.floor(indices[indices.length - 1] / itemsPerPage);
-
-      goToItem(
-        isShowingFirst ? items.length - 1 : (pageIndex - 1) * itemsPerPage,
-      );
+      const prevIndex = (itemIndex - 1) % items.length;
+      itemIndex = prevIndex < MIN_ELEMENTS ? MAX_INDEX : prevIndex;
+      goToItem(itemIndex);
     };
 
     const onClickNext = () => {
-      const indices = getElementsInsideContainer();
-      // Wow! items per page is how many elements are being displayed inside the container!!
-      const itemsPerPage = indices.length;
-
-      const isShowingLast = indices[indices.length - 1] === items.length - 1;
-      const pageIndex = Math.floor(indices[0] / itemsPerPage);
-
-      goToItem(isShowingLast ? 0 : (pageIndex + 1) * itemsPerPage);
+      const nextIndex = (itemIndex + 1) % items.length;
+      itemIndex = nextIndex;
+      goToItem(itemIndex);
     };
 
     const observer = new IntersectionObserver(
@@ -177,18 +144,10 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
 
           if (!infinite) {
             if (index === 0) {
-              if (e.isIntersecting) {
-                prev?.setAttribute("disabled", "");
-              } else {
-                prev?.removeAttribute("disabled");
-              }
+              prev?.removeAttribute("disabled");
             }
             if (index === items.length - 1) {
-              if (e.isIntersecting) {
-                next?.setAttribute("disabled", "");
-              } else {
-                next?.removeAttribute("disabled");
-              }
+              next?.removeAttribute("disabled");
             }
           }
         }),
@@ -227,6 +186,7 @@ function JS({ rootId, scroll = "smooth", interval, infinite = false }: Props) {
   );
 }
 
+Slider.View = View;
 Slider.Dot = Dot;
 Slider.Item = Item;
 Slider.NextButton = NextButton;

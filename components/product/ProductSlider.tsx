@@ -23,29 +23,32 @@ function ProductSlider({ products, itemListName }: Props) {
         }}
       >
         <div class="col-start-1 col-span-3 row-start-1 row-span-1">
-          <Slider class="carousel carousel-center sm:carousel-end gap-5 sm:gap-10 w-full">
-            {products?.map((product, index) => (
-              <Slider.Item
-                index={index}
-                class={clx(
-                  "carousel-item",
-                  "first:pl-5 first:sm:pl-0",
-                  "last:pr-5 last:sm:pr-0",
-                )}
-              >
-                <ProductCard
+          {/* TODO: Inprove this to get the right size */}
+          <Slider.View class="w-screen overflow-hidden">
+            <Slider class="carousel carousel-center sm:carousel-end gap-5 sm:gap-10 w-full h-[500px] overflow-visible transition-all">
+              {products?.map((product, index) => (
+                <Slider.Item
                   index={index}
-                  product={product}
-                  itemListName={itemListName}
-                  class="w-[287px] sm:w-[300px]"
-                />
-              </Slider.Item>
-            ))}
-          </Slider>
+                  class={clx(
+                    "carousel-item absolute",
+                    "first:pl-5 first:sm:pl-0",
+                    "last:pr-5 last:sm:pr-0",
+                  )}
+                >
+                  <ProductCard
+                    index={index}
+                    product={product}
+                    itemListName={itemListName}
+                    class="w-[287px] sm:w-[300px] mr-5"
+                  />
+                </Slider.Item>
+              ))}
+            </Slider>
+          </Slider.View>
         </div>
 
         <div class="col-start-1 col-span-1 row-start-1 row-span-1 z-10 self-center">
-          <Slider.PrevButton class="hidden sm:flex disabled:hidden btn btn-neutral btn-sm btn-circle no-animation">
+          <Slider.PrevButton class="hidden sm:flex  btn btn-neutral btn-sm btn-circle no-animation">
             <Icon id="chevron-right" class="rotate-180" />
           </Slider.PrevButton>
         </div>
