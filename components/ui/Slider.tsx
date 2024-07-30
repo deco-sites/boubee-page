@@ -91,14 +91,20 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
     const MIN_ELEMENTS = 0;
     const MAX_INDEX = items.length - 1;
     let currentDirection: "prev" | "next" = "next";
+    let currentDragDirection: "prev" | "next" = "next";
     let itemIndex = 0;
     let percentOfTranlateX = 0;
     let prevPercentOfTranlateX = 0;
     let lastItemTranslate = MAX_INDEX * PERCENT_OF_PRODUCT_VIEW;
     let startX = 0;
+    let lastPositionX = 0;
     let isDragging = false;
 
-    const goToItem = (index: number, isPrev?: boolean) => {
+    const goToItem = (
+      index: number,
+      moveSlider?: boolean,
+      isPrev?: boolean,
+    ) => {
       const item = items.item(index);
       const isToReturn = isPrev;
       if (!isHTMLElement(item)) {
@@ -124,9 +130,11 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
 
         firstItem.style.transform = `translateX(${lastItemTranslate}%)`;
 
-        percentOfTranlateX += percentOfView;
+        if (moveSlider) {
+          percentOfTranlateX += percentOfView;
 
-        slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+          slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+        }
       } else {
         const lastItem = items.item(
           index === 0 ? MAX_INDEX : index - 1,
@@ -142,28 +150,81 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
 
         lastItem.style.transform = `translateX(${lastItemTranslate}%)`;
 
-        percentOfTranlateX -= percentOfView;
+        if (moveSlider) {
+          percentOfTranlateX -= percentOfView;
 
-        slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+          slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+        }
       }
     };
 
     const onClickPrev = () => {
       const prevIndex = (itemIndex - 1) % items.length;
       itemIndex = prevIndex < MIN_ELEMENTS ? MAX_INDEX : prevIndex;
-      goToItem(itemIndex, true);
+      goToItem(itemIndex, true, true);
     };
 
     const onClickNext = () => {
       const nextIndex = (itemIndex + 1) % items.length;
       itemIndex = nextIndex;
-      goToItem(itemIndex);
+      goToItem(itemIndex, true);
     };
 
     const getPositionX = (event: MouseEvent | TouchEvent) => {
       return event.type.includes("mouse")
         ? (event as MouseEvent).pageX
         : (event as TouchEvent).touches[0].clientX;
+    };
+
+    const setDirection = (currentPosition: number) => {
+      if (currentPosition > lastPositionX) {
+        currentDragDirection = "prev";
+      } else if (currentPosition < lastPositionX) {
+        currentDragDirection = "next";
+      }
+      lastPositionX = currentPosition;
+    };
+
+    // TODO: Inprove how to get the visible indexes to work with "sudden movements"
+    const getVisibleItemIndexes = () => {
+      const itemsArray = Array.from(items);
+      const visibleIndexes: number[] = [];
+
+      itemsArray.forEach((item, index) => {
+        const itemRect = item.getBoundingClientRect();
+        const viewRect = view.getBoundingClientRect();
+
+        if (itemRect.right > viewRect.left && itemRect.left < viewRect.right) {
+          visibleIndexes.push(index);
+        }
+      });
+
+      return visibleIndexes;
+    };
+
+    const moveCard = (): void => {
+      const visibleIndexes = getVisibleItemIndexes();
+      if (currentDragDirection === "next") {
+        const hasUpdated = visibleIndexes.some((visibleIndex) =>
+          visibleIndex === itemIndex
+        );
+        if (!hasUpdated) {
+          itemIndex = (itemIndex + 1) % items.length;
+          goToItem(itemIndex);
+        }
+      } else {
+        const prevIndex = (itemIndex - 1) % items.length;
+        const adjustedPrevIndex = prevIndex < MIN_ELEMENTS
+          ? MAX_INDEX
+          : prevIndex;
+        const hasUpdated = visibleIndexes.some((visibleIndex) =>
+          visibleIndex === adjustedPrevIndex
+        );
+        if (!hasUpdated) {
+          itemIndex = adjustedPrevIndex;
+          goToItem(itemIndex, false, true);
+        }
+      }
     };
 
     const startGrab = (event: MouseEvent | TouchEvent) => {
@@ -182,6 +243,8 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
     const moveCarousel = (event: MouseEvent | TouchEvent) => {
       if (isDragging) {
         const currentPosition = getPositionX(event);
+        setDirection(currentPosition);
+        moveCard();
         const moveBy = currentPosition - startX;
         const percentOfPositionX = (moveBy / view!.offsetWidth) * 100;
         percentOfTranlateX = prevPercentOfTranlateX + percentOfPositionX;
