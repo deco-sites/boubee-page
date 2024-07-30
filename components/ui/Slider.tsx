@@ -19,6 +19,10 @@ function Slider(props: JSX.IntrinsicElements["ul"]) {
   return <ul data-slider {...props} />;
 }
 
+function View(props: JSX.IntrinsicElements["div"]) {
+  return <div data-slider-view {...props} style={{ position: "relative" }} />;
+}
+
 function Item({
   index,
   ...props
@@ -50,33 +54,11 @@ export interface Props {
   infinite?: boolean;
 }
 
-const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
+const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
   function init() {
     // Percentage of the item that has to be inside the container
     // for it it be considered as inside the container
     const THRESHOLD = 0.6;
-
-    const intersectionX = (element: DOMRect, container: DOMRect): number => {
-      const delta = container.width / 1_000;
-
-      if (element.right < container.left - delta) {
-        return 0.0;
-      }
-
-      if (element.left > container.right + delta) {
-        return 0.0;
-      }
-
-      if (element.left < container.left - delta) {
-        return element.right - container.left + delta;
-      }
-
-      if (element.right > container.right + delta) {
-        return container.right - element.left + delta;
-      }
-
-      return element.width;
-    };
 
     // as any are ok in typeguard functions
     const isHTMLElement = (x: Element): x is HTMLElement =>
@@ -84,7 +66,8 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
       typeof (x as any).offsetLeft === "number";
 
     const root = document.getElementById(rootId);
-    const slider = root?.querySelector("[data-slider]");
+    const view = root?.querySelector("[data-slider-view]") as HTMLDivElement;
+    const slider = root?.querySelector("[data-slider]") as HTMLUListElement;
     const items = root?.querySelectorAll("[data-slider-item]");
     const prev = root?.querySelector('[data-slide="prev"]');
     const next = root?.querySelector('[data-slide="next"]');
@@ -93,36 +76,37 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
     if (!root || !slider || !items || items.length === 0) {
       console.warn(
         "Missing necessary slider attributes. It will not work as intended. Necessary elements:",
-        { root, slider, items, rootId },
+        { root, slider, items, rootId, view },
       );
 
       return;
     }
+    const PERCENT_OF_PRODUCT_VIEW = 100;
+    items.forEach((item, index) =>
+      (item as HTMLLIElement).style.transform = `translateX(${
+        PERCENT_OF_PRODUCT_VIEW * index
+      }%)`
+    );
 
-    const getElementsInsideContainer = () => {
-      const indices: number[] = [];
-      const sliderRect = slider.getBoundingClientRect();
+    const MIN_ELEMENTS = 0;
+    const MAX_INDEX = items.length - 1;
+    let currentDirection: "prev" | "next" = "next";
+    let currentDragDirection: "prev" | "next" = "next";
+    let itemIndex = 0;
+    let percentOfTranlateX = 0;
+    let prevPercentOfTranlateX = 0;
+    let lastItemTranslate = MAX_INDEX * PERCENT_OF_PRODUCT_VIEW;
+    let startX = 0;
+    let lastPositionX = 0;
+    let isDragging = false;
 
-      for (let index = 0; index < items.length; index++) {
-        const item = items.item(index);
-        const rect = item.getBoundingClientRect();
-
-        const ratio = intersectionX(
-          rect,
-          sliderRect,
-        ) / rect.width;
-
-        if (ratio > THRESHOLD) {
-          indices.push(index);
-        }
-      }
-
-      return indices;
-    };
-
-    const goToItem = (index: number) => {
+    const goToItem = (
+      index: number,
+      moveSlider?: boolean,
+      isPrev?: boolean,
+    ) => {
       const item = items.item(index);
-
+      const isToReturn = isPrev;
       if (!isHTMLElement(item)) {
         console.warn(
           `Element at index ${index} is not an html element. Skipping carousel`,
@@ -131,35 +115,141 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
         return;
       }
 
-      slider.scrollTo({
-        top: 0,
-        behavior: scroll,
-        left: item.offsetLeft - root.offsetLeft,
-      });
+      const percentOfView =
+        ((items.item(0) as HTMLLIElement).offsetWidth / view!.offsetWidth) *
+        100;
+      if (isToReturn) {
+        const firstItem = items.item(index) as HTMLLIElement;
+        if (currentDirection === "next") {
+          lastItemTranslate = lastItemTranslate -
+            (PERCENT_OF_PRODUCT_VIEW * (items.length));
+          currentDirection = "prev";
+        } else {
+          lastItemTranslate -= PERCENT_OF_PRODUCT_VIEW;
+        }
+
+        firstItem.style.transform = `translateX(${lastItemTranslate}%)`;
+
+        if (moveSlider) {
+          percentOfTranlateX += percentOfView;
+
+          slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+        }
+      } else {
+        const lastItem = items.item(
+          index === 0 ? MAX_INDEX : index - 1,
+        ) as HTMLLIElement;
+
+        if (currentDirection === "prev") {
+          lastItemTranslate = lastItemTranslate +
+            (PERCENT_OF_PRODUCT_VIEW * (items.length));
+          currentDirection = "next";
+        } else {
+          lastItemTranslate += PERCENT_OF_PRODUCT_VIEW;
+        }
+
+        lastItem.style.transform = `translateX(${lastItemTranslate}%)`;
+
+        if (moveSlider) {
+          percentOfTranlateX -= percentOfView;
+
+          slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+        }
+      }
     };
 
     const onClickPrev = () => {
-      const indices = getElementsInsideContainer();
-      // Wow! items per page is how many elements are being displayed inside the container!!
-      const itemsPerPage = indices.length;
-
-      const isShowingFirst = indices[0] === 0;
-      const pageIndex = Math.floor(indices[indices.length - 1] / itemsPerPage);
-
-      goToItem(
-        isShowingFirst ? items.length - 1 : (pageIndex - 1) * itemsPerPage,
-      );
+      const prevIndex = (itemIndex - 1) % items.length;
+      itemIndex = prevIndex < MIN_ELEMENTS ? MAX_INDEX : prevIndex;
+      goToItem(itemIndex, true, true);
     };
 
     const onClickNext = () => {
-      const indices = getElementsInsideContainer();
-      // Wow! items per page is how many elements are being displayed inside the container!!
-      const itemsPerPage = indices.length;
+      const nextIndex = (itemIndex + 1) % items.length;
+      itemIndex = nextIndex;
+      goToItem(itemIndex, true);
+    };
 
-      const isShowingLast = indices[indices.length - 1] === items.length - 1;
-      const pageIndex = Math.floor(indices[0] / itemsPerPage);
+    const getPositionX = (event: MouseEvent | TouchEvent) => {
+      return event.type.includes("mouse")
+        ? (event as MouseEvent).pageX
+        : (event as TouchEvent).touches[0].clientX;
+    };
 
-      goToItem(isShowingLast ? 0 : (pageIndex + 1) * itemsPerPage);
+    const setDirection = (currentPosition: number) => {
+      if (currentPosition > lastPositionX) {
+        currentDragDirection = "prev";
+      } else if (currentPosition < lastPositionX) {
+        currentDragDirection = "next";
+      }
+      lastPositionX = currentPosition;
+    };
+
+    // TODO: Inprove how to get the visible indexes to work with "sudden movements"
+    const getVisibleItemIndexes = () => {
+      const itemsArray = Array.from(items);
+      const visibleIndexes: number[] = [];
+
+      itemsArray.forEach((item, index) => {
+        const itemRect = item.getBoundingClientRect();
+        const viewRect = view.getBoundingClientRect();
+
+        if (itemRect.right > viewRect.left && itemRect.left < viewRect.right) {
+          visibleIndexes.push(index);
+        }
+      });
+
+      return visibleIndexes;
+    };
+
+    const moveCard = (): void => {
+      const visibleIndexes = getVisibleItemIndexes();
+      if (currentDragDirection === "next") {
+        const hasUpdated = visibleIndexes.some((visibleIndex) =>
+          visibleIndex === itemIndex
+        );
+        if (!hasUpdated) {
+          itemIndex = (itemIndex + 1) % items.length;
+          goToItem(itemIndex);
+        }
+      } else {
+        const prevIndex = (itemIndex - 1) % items.length;
+        const adjustedPrevIndex = prevIndex < MIN_ELEMENTS
+          ? MAX_INDEX
+          : prevIndex;
+        const hasUpdated = visibleIndexes.some((visibleIndex) =>
+          visibleIndex === adjustedPrevIndex
+        );
+        if (!hasUpdated) {
+          itemIndex = adjustedPrevIndex;
+          goToItem(itemIndex, false, true);
+        }
+      }
+    };
+
+    const startGrab = (event: MouseEvent | TouchEvent) => {
+      startX = getPositionX(event);
+      prevPercentOfTranlateX = percentOfTranlateX;
+      isDragging = true;
+      view.style.cursor = "grabbing";
+    };
+
+    const endGrab = (_event: MouseEvent | TouchEvent) => {
+      isDragging = false;
+      startX = 0;
+      view.style.cursor = "grab";
+    };
+
+    const moveCarousel = (event: MouseEvent | TouchEvent) => {
+      if (isDragging) {
+        const currentPosition = getPositionX(event);
+        setDirection(currentPosition);
+        moveCard();
+        const moveBy = currentPosition - startX;
+        const percentOfPositionX = (moveBy / view!.offsetWidth) * 100;
+        percentOfTranlateX = prevPercentOfTranlateX + percentOfPositionX;
+        slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+      }
     };
 
     const observer = new IntersectionObserver(
@@ -177,18 +267,10 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
 
           if (!infinite) {
             if (index === 0) {
-              if (e.isIntersecting) {
-                prev?.setAttribute("disabled", "");
-              } else {
-                prev?.removeAttribute("disabled");
-              }
+              prev?.removeAttribute("disabled");
             }
             if (index === items.length - 1) {
-              if (e.isIntersecting) {
-                next?.setAttribute("disabled", "");
-              } else {
-                next?.removeAttribute("disabled");
-              }
+              next?.removeAttribute("disabled");
             }
           }
         }),
@@ -201,6 +283,13 @@ const onLoad = ({ rootId, scroll, interval, infinite }: Props) => {
       dots?.item(it).addEventListener("click", () => goToItem(it));
     }
 
+    view?.addEventListener("mousedown", startGrab);
+    view?.addEventListener("touchstart", startGrab);
+    view?.addEventListener("mousemove", moveCarousel);
+    view?.addEventListener("touchmove", moveCarousel);
+    view?.addEventListener("mouseleave", endGrab);
+    view.addEventListener("mouseup", endGrab);
+    view?.addEventListener("touchend", endGrab);
     prev?.addEventListener("click", onClickPrev);
     next?.addEventListener("click", onClickNext);
 
@@ -227,6 +316,7 @@ function JS({ rootId, scroll = "smooth", interval, infinite = false }: Props) {
   );
 }
 
+Slider.View = View;
 Slider.Dot = Dot;
 Slider.Item = Item;
 Slider.NextButton = NextButton;
