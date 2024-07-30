@@ -83,17 +83,21 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
     }
     const PERCENT_OF_PRODUCT_VIEW = 100;
     items.forEach((item, index) =>
-      (item as HTMLLIElement).style.transform = `translateX(${PERCENT_OF_PRODUCT_VIEW * index
+      (item as HTMLLIElement).style.transform = `translateX(${
+        PERCENT_OF_PRODUCT_VIEW * index
       }%)`
     );
 
-    let itemIndex = 0;
     const MIN_ELEMENTS = 0;
     const MAX_INDEX = items.length - 1;
+    let currentDirection: "prev" | "next" = "next";
+    let itemIndex = 0;
+    let percentOfTranlateX = 0;
+    let lastItemTranslate = MAX_INDEX * PERCENT_OF_PRODUCT_VIEW;
 
-    const goToItem = (index: number) => {
+    const goToItem = (index: number, isPrev?: boolean) => {
       const item = items.item(index);
-
+      const isToReturn = isPrev;
       if (!isHTMLElement(item)) {
         console.warn(
           `Element at index ${index} is not an html element. Skipping carousel`,
@@ -104,23 +108,46 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
 
       const percentOfView =
         ((items.item(0) as HTMLLIElement).offsetWidth / root.offsetWidth) * 100;
-      items.forEach((item, itemIndex) => {
-        if (itemIndex < index) {
-          (item as HTMLLIElement).style.transform = `translateX(${PERCENT_OF_PRODUCT_VIEW * (itemIndex + MAX_INDEX + 1)
-            }%)`;
+      if (isToReturn) {
+        const firstItem = items.item(index) as HTMLLIElement;
+        if (currentDirection === "next") {
+          lastItemTranslate = lastItemTranslate -
+            (PERCENT_OF_PRODUCT_VIEW * (items.length));
+          currentDirection = "prev";
         } else {
-          (item as HTMLLIElement).style.transform = `translateX(${PERCENT_OF_PRODUCT_VIEW * itemIndex
-            }%)`;
+          lastItemTranslate -= PERCENT_OF_PRODUCT_VIEW;
         }
-      });
 
-      slider.style.transform = `translateX(-${percentOfView * index}%)`;
+        firstItem.style.transform = `translateX(${lastItemTranslate}%)`;
+
+        percentOfTranlateX += percentOfView;
+
+        slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+      } else {
+        const lastItem = items.item(
+          index === 0 ? MAX_INDEX : index - 1,
+        ) as HTMLLIElement;
+
+        if (currentDirection === "prev") {
+          lastItemTranslate = lastItemTranslate +
+            (PERCENT_OF_PRODUCT_VIEW * (items.length));
+          currentDirection = "next";
+        } else {
+          lastItemTranslate += PERCENT_OF_PRODUCT_VIEW;
+        }
+
+        lastItem.style.transform = `translateX(${lastItemTranslate}%)`;
+
+        percentOfTranlateX -= percentOfView;
+
+        slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+      }
     };
 
     const onClickPrev = () => {
       const prevIndex = (itemIndex - 1) % items.length;
       itemIndex = prevIndex < MIN_ELEMENTS ? MAX_INDEX : prevIndex;
-      goToItem(itemIndex);
+      goToItem(itemIndex, true);
     };
 
     const onClickNext = () => {
