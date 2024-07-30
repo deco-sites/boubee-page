@@ -66,7 +66,7 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
       typeof (x as any).offsetLeft === "number";
 
     const root = document.getElementById(rootId);
-    const view = root?.querySelector("[data-slider-view]");
+    const view = root?.querySelector("[data-slider-view]") as HTMLDivElement;
     const slider = root?.querySelector("[data-slider]") as HTMLUListElement;
     const items = root?.querySelectorAll("[data-slider-item]");
     const prev = root?.querySelector('[data-slide="prev"]');
@@ -93,7 +93,10 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
     let currentDirection: "prev" | "next" = "next";
     let itemIndex = 0;
     let percentOfTranlateX = 0;
+    let prevPercentOfTranlateX = 0;
     let lastItemTranslate = MAX_INDEX * PERCENT_OF_PRODUCT_VIEW;
+    let startX = 0;
+    let isDragging = false;
 
     const goToItem = (index: number, isPrev?: boolean) => {
       const item = items.item(index);
@@ -107,7 +110,8 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
       }
 
       const percentOfView =
-        ((items.item(0) as HTMLLIElement).offsetWidth / root.offsetWidth) * 100;
+        ((items.item(0) as HTMLLIElement).offsetWidth / view!.offsetWidth) *
+        100;
       if (isToReturn) {
         const firstItem = items.item(index) as HTMLLIElement;
         if (currentDirection === "next") {
@@ -156,6 +160,35 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
       goToItem(itemIndex);
     };
 
+    const getPositionX = (event: MouseEvent | TouchEvent) => {
+      return event.type.includes("mouse")
+        ? (event as MouseEvent).pageX
+        : (event as TouchEvent).touches[0].clientX;
+    };
+
+    const startGrab = (event: MouseEvent | TouchEvent) => {
+      startX = getPositionX(event);
+      prevPercentOfTranlateX = percentOfTranlateX;
+      isDragging = true;
+      view.style.cursor = "grabbing";
+    };
+
+    const endGrab = (_event: MouseEvent | TouchEvent) => {
+      isDragging = false;
+      startX = 0;
+      view.style.cursor = "grab";
+    };
+
+    const moveCarousel = (event: MouseEvent | TouchEvent) => {
+      if (isDragging) {
+        const currentPosition = getPositionX(event);
+        const moveBy = currentPosition - startX;
+        const percentOfPositionX = (moveBy / view!.offsetWidth) * 100;
+        percentOfTranlateX = prevPercentOfTranlateX + percentOfPositionX;
+        slider.style.transform = `translateX(${percentOfTranlateX}%)`;
+      }
+    };
+
     const observer = new IntersectionObserver(
       (elements) =>
         elements.forEach((e) => {
@@ -187,6 +220,13 @@ const onLoad = ({ rootId, scroll: _scroll, interval, infinite }: Props) => {
       dots?.item(it).addEventListener("click", () => goToItem(it));
     }
 
+    view?.addEventListener("mousedown", startGrab);
+    view?.addEventListener("touchstart", startGrab);
+    view?.addEventListener("mousemove", moveCarousel);
+    view?.addEventListener("touchmove", moveCarousel);
+    view?.addEventListener("mouseleave", endGrab);
+    view.addEventListener("mouseup", endGrab);
+    view?.addEventListener("touchend", endGrab);
     prev?.addEventListener("click", onClickPrev);
     next?.addEventListener("click", onClickNext);
 
