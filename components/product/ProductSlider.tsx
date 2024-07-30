@@ -31,8 +31,6 @@ function ProductSlider({ products, itemListName }: Props) {
                   index={index}
                   class={clx(
                     "carousel-item absolute",
-                    "first:pl-5 first:sm:pl-0",
-                    "last:pr-5 last:sm:pr-0",
                   )}
                 >
                   <ProductCard
